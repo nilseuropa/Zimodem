@@ -14,8 +14,6 @@
    limitations under the License.
 */
 
-#define ZSTREAM_ESC_BUF_MAX 10
-
 enum HangupType
 {
   HANGUP_NONE,
@@ -34,12 +32,12 @@ class ZStream : public ZMode
     int lastDTR = 0;
     bool defaultEcho=false;
     int lastPDP = 0;
-    uint8_t escBuf[ZSTREAM_ESC_BUF_MAX];
+    static const uint8_t ESC_SEQ_BUF_MAX = 10;
     unsigned long switchAlarm = millis() + 5000;
+    unsigned long currentExpiresTimeMs = 0;
     
     void switchBackToCommandMode(bool pppMode);
-    void socketWrite(uint8_t c);
-    void socketWrite(uint8_t *buf, uint8_t len);
+    void socketWrite(uint8_t *buf, size_t len);
     void baudDelay();
 
     bool isPETSCII();

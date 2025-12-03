@@ -79,29 +79,27 @@ void ZStream::baudDelay()
 
 void ZStream::serialIncoming()
 {
+  uint8_t buf[ESC_SEQ_BUF_MAX];
+  bool escRead = false;
+  size_t bytesRead = 0;
   int bytesAvailable = HWSerial.available();
   if(bytesAvailable == 0)
     return;
-  uint8_t escBufDex = 0;
   while(--bytesAvailable >= 0)
   {
-    uint8_t c=HWSerial.read();
-    if(((c==27)||(escBufDex>0))
-    &&(!isPETSCII()))
+    uint8_t c = HWSerial.read();
+    if (c == 27)
     {
-      escBuf[escBufDex++] = c;
-      if(((c>='a')&&(c<='z'))
-      ||((c>='A')&&(c<='Z'))
-      ||(escBufDex>=ZSTREAM_ESC_BUF_MAX)
-      ||((escBufDex==2)&&(c!='[')))
+      if (escRead)
       {
-        logSerialIn(c);
-        break;
+        if(bytesRead>0)
+          socketWrite(buf, bytesRead);
+        bytesRead = 0;
       }
-      if(bytesAvailable==0)
+      else
       {
-        baudDelay();
-        bytesAvailable=HWSerial.available();
+        escRead = true;
+        delay(1);
       }
     }
     processPlusPlusPlus(c);
@@ -117,13 +115,24 @@ void ZStream::serialIncoming()
         serial.printb(c);
       if(isPETSCII())
         c = petToAsc(c);
-      if(escBufDex==0)
-        socketWrite(c);
+      buf[bytesRead++] = c;
+      if (bytesRead == ESC_SEQ_BUF_MAX)
+      {
+        socketWrite(buf, bytesRead);
+        bytesRead = 0;
+      }
     }
   }
 
-  if(escBufDex>0)
-    socketWrite(escBuf,escBufDex);
+  if (bytesRead)
+    socketWrite(buf, bytesRead);
+
+  currentExpiresTimeMs = 0;
+  if(plussesInARow==3)
+    currentExpiresTimeMs=millis()+800;
+  else
+  if(currentExpiresTimeMs == 0)
+    currentExpiresTimeMs = millis() + 40;
 }
 
 void ZStream::switchBackToCommandMode(bool pppMode)
@@ -168,42 +177,21 @@ void ZStream::switchBackToCommandMode(bool pppMode)
   currMode = &commandMode;
 }
 
-void ZStream::socketWrite(uint8_t *buf, uint8_t len)
+void ZStream::socketWrite(uint8_t *buf, size_t len)
 {
   if(current->isConnected())
   {
     uint8_t escapedBuf[len*2];
-    if(isTelnet())
+    size_t outDex=0;
+    for(size_t i=0;i<len;i++)
     {
-      int eDex=0;
-      for(int i=0;i<len;i++)
-      {
-          escapedBuf[eDex++] = buf[i];
-          if(buf[i]==0xff)
-            escapedBuf[eDex++] = buf[i];
-      }
-      buf=escapedBuf;
-      len=eDex;
-    }
-    for(int i=0;i<len;i++)
+      if(buf[i]==0xff && isTelnet())
+        escapedBuf[outDex++] = buf[i];
       logSocketOut(buf[i]);
-    current->write(buf,len);
+      escapedBuf[outDex++] = buf[i];
+    }
+    current->write(escapedBuf,outDex);
     nextFlushMs=millis()+250;
-  }
-}
-
-void ZStream::socketWrite(uint8_t c)
-{
-  if(current->isConnected())
-  {
-    if(c == 0xFF && isTelnet()) 
-      current->write(c);
-    current->write(c);
-    logSocketOut(c);
-    nextFlushMs=millis()+250;
-    //current->flush(); // rendered safe by available check
-    //delay(0);
-    //yield();
   }
 }
 
