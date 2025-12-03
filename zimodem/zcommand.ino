@@ -38,47 +38,60 @@ ZCommand::ZCommand()
 
 static void parseHostInfo(uint8_t *vbuf, char **hostIp, int *port, char **username, char **password)
 {
-  char *at=strstr((char *)vbuf,"@");
   *hostIp = (char *)vbuf;
+  *port = -1;
+  *username = null;
+  *password = null;
+  char *at=strstr((char *)vbuf,"@");
   if(at != null)
   {
     *at = 0;
     *hostIp = at+1;
-    char *ucol = strstr((char *)vbuf,":");
-    *username = (char *)vbuf;
+    char *credStart = (char *)vbuf;
+    char *ucol = strstr(credStart,":");
     if(ucol != null)
     {
       *ucol = 0;
+      *username = credStart;
       *password = ucol + 1;
     }
+    else
+      *username = credStart;
   }
   char *colon=strstr(*hostIp,":");
   if(colon != null)
   {
     (*colon)=0;
-    *port=atoi((char *)(++colon));
+    *port=atoi((char *)(colon+1));
   }
 }
 
 static bool validateHostInfo(uint8_t *vbuf)
 {
   String cmd = (char *)vbuf;
+  if(cmd.length()==0)
+    return false;
   int atDex=cmd.indexOf('@');
-  int colonDex=cmd.indexOf(':');
-  int lastColonDex=cmd.lastIndexOf(':');
   bool fail = cmd.indexOf(',') >= 0;
+  String hostPart = cmd;
   if(atDex >=0)
   {
-    colonDex=cmd.indexOf(':',atDex+1);
-    fail = cmd.indexOf(',') >= atDex;
+    hostPart = cmd.substring(atDex+1);
+    String credPart = cmd.substring(0,atDex);
+    fail = fail || (credPart.length()==0);
+    int credColon = credPart.indexOf(':');
+    fail = fail || (credColon == 0);
   }
-  fail = fail || (colonDex <= 0) || (colonDex == cmd.length()-1);
-  fail = fail || (colonDex != cmd.lastIndexOf(':'));
-  if(!fail)
+  fail = fail || (hostPart.length()==0);
+  int colonDex=hostPart.indexOf(':');
+  if(colonDex == 0)
+    fail=true;
+  if((!fail) && (colonDex >= 0))
   {
-    for(int i=colonDex+1;i<cmd.length();i++)
+    fail = fail || (colonDex == hostPart.length()-1);
+    for(int i=colonDex+1;i<hostPart.length();i++)
     {
-      if(strchr("0123456789",cmd[i]) == 0)
+      if(strchr("0123456789",hostPart[i]) == 0)
       {
         fail=true;
         break;
@@ -1173,8 +1186,14 @@ ZResult ZCommand::doConnectCommand(int vval, uint8_t *vbuf, int vlen, bool isNum
       ConnSettings flags(dmodifiers);
       flagsBitmap = flags.getBitmap(serial.getFlowControlType());
     }
+    bool missingPass = ((flagsBitmap&FLAG_SECURE)==FLAG_SECURE) && (username != null) && ((password == null) || (*password == 0));
+    if(missingPass)
+    {
+      serial.printf("%sError password not provided.%s",EOLN.c_str(),EOLN.c_str());
+      return ZERROR;
+    }
     if(port < 0)
-      port = ((username != 0) && ((flagsBitmap&FLAG_SECURE)==FLAG_SECURE))?22:23;
+      port = ((flagsBitmap&FLAG_SECURE)==FLAG_SECURE)?22:23;
     if(username != null)
       logPrintfln("Connnecting: %s@%s:%d %d",username,host,port,flagsBitmap);
     else
@@ -1872,8 +1891,14 @@ ZResult ZCommand::doDialStreamCommand(unsigned long vval, uint8_t *vbuf, int vle
     char *username = 0;
     char *password = 0;
     parseHostInfo(vbuf, &host, &port, &username, &password);
+    bool missingPass = ((flagsBitmap&FLAG_SECURE)==FLAG_SECURE) && (username != null) && ((password == null) || (*password == 0));
+    if(missingPass)
+    {
+      serial.printf("%sError password not provided.%s",EOLN.c_str(),EOLN.c_str());
+      return ZERROR;
+    }
     if(port < 0)
-      port = ((username != 0) && ((flagsBitmap&FLAG_SECURE)==FLAG_SECURE))?22:23;
+      port = ((flagsBitmap&FLAG_SECURE)==FLAG_SECURE)?22:23;
     WiFiClientNode *c = new WiFiClientNode(host,port,username,password,flagsBitmap | FLAG_DISCONNECT_ON_EXIT);
     if(!c->isConnected())
     {

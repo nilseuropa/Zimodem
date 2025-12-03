@@ -287,7 +287,7 @@ void ZConfig::doModeCommand()
       else
       {
         if(!validateHostInfo((uint8_t *)cmd.c_str()))
-          serial.printf("%sInvalid address format (hostname:port) or (user:pass@hostname:port) for '%s'.%s%s",EOLNC,cmd.c_str(),EOLNC,EOLNC);
+          serial.printf("%sInvalid address format (hostname[:port]) or (user:pass@hostname[:port]) for '%s'.%s%s",EOLNC,cmd.c_str(),EOLNC,EOLNC);
         else
         {
           lastAddress = cmd;
@@ -729,7 +729,7 @@ void ZConfig::loop()
       {
         PhoneBookEntry *lastEntry = PhoneBookEntry::findPhonebookEntry(lastNumber);
         if(lastEntry == null)
-          serial.printf("%sEnter hostname:port, or user:pass@hostname:port for SSH%s: ",EOLNC,EOLNC);
+          serial.printf("%sEnter hostname[:port], or user:pass@hostname[:port] for SSH%s: ",EOLNC,EOLNC);
         else
           serial.printf("%sModify address, or enter DELETE (%s)%s: ",EOLNC,lastAddress.c_str(),EOLNC);
         break;
