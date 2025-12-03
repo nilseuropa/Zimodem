@@ -151,6 +151,8 @@ void ZCommand::setConfigDefaults()
   autoStreamMode=false; // should prob have been true all along, ats0 takes care of this.
   telnetSupport=true;
   preserveListeners=false;
+  zimodemSetWifiSleep(true);
+  zimodemSetWifiTxPower(-1.0);
   ringCounter=1;
   streamMode.setHangupType(HANGUP_NONE);
   serial.setFlowControlType(DEFAULT_FCT);
@@ -1673,8 +1675,58 @@ ZResult ZCommand::doWiFiCommand(int vval, uint8_t *vbuf, int vlen, bool isNumber
   }
   else
   {
-    char *x=strstr((char *)vbuf,",");
-    char *ssi=(char *)vbuf;
+    char argBuf[vlen+1];
+    memcpy(argBuf,vbuf,vlen);
+    argBuf[vlen]=0;
+    String arg = argBuf;
+    arg.trim();
+    while(arg.startsWith("="))
+    {
+      arg = arg.substring(1);
+      arg.trim();
+    }
+    String argUpper = arg;
+    argUpper.toUpperCase();
+    if(argUpper.startsWith("SLEEP"))
+    {
+      if(argUpper.endsWith("?"))
+      {
+        serial.printf("%sWiFi Sleep: %s%s",EOLN.c_str(),zimodemGetWifiSleep()?"ON":"OFF",EOLN.c_str());
+        return ZOK;
+      }
+      int eqDex = argUpper.indexOf('=');
+      if((eqDex < 0)||(eqDex >= (argUpper.length()-1)))
+        return ZERROR;
+      bool enable = !(argUpper.charAt(eqDex+1)=='0');
+      if(!zimodemSetWifiSleep(enable))
+        return ZERROR;
+      serial.printf("%sWiFi Sleep set %s.%s",EOLN.c_str(),enable?"ON":"OFF",EOLN.c_str());
+      return ZOK;
+    }
+    if(argUpper.startsWith("TXP") || argUpper.startsWith("TXPOWER"))
+    {
+      if(argUpper.endsWith("?"))
+      {
+        float pwr = zimodemGetWifiTxPower();
+        if(pwr < 0)
+          serial.printf("%sWiFi TX Power: default%s",EOLN.c_str(),EOLN.c_str());
+        else
+          serial.printf("%sWiFi TX Power: %.1fdBm%s",EOLN.c_str(),pwr,EOLN.c_str());
+        return ZOK;
+      }
+      int eqDex = argUpper.indexOf('=');
+      if((eqDex < 0)||(eqDex >= (argUpper.length()-1)))
+        return ZERROR;
+      float dbm = atof(argUpper.substring(eqDex+1).c_str());
+      if(!zimodemSetWifiTxPower(dbm))
+        return ZERROR;
+      serial.printf("%sWiFi TX Power set to %.1fdBm.%s",EOLN.c_str(),dbm,EOLN.c_str());
+      return ZOK;
+    }
+    char argChars[arg.length()+1];
+    arg.toCharArray(argChars,arg.length()+1);
+    char *x=strstr((char *)argChars,",");
+    char *ssi=(char *)argChars;
     char *pw=ssi + strlen(ssi);
     IPAddress *ip[4];
     for(int i=0;i<4;i++)

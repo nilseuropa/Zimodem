@@ -112,6 +112,8 @@ ATW : List all wireless network access points scanned within range.  The respons
 ATWn : Where n > 0, this lists up to n wireless network access points scanned within range.  The response for each entry is the SSID, following by the RSSI, followed by an * character is the connection is encrypted.
 ATW"[SSI],[PASSWORD]" : Connects to the wireless access point with the given SSI, using the given password.
 ATW"[SSI],[PASSWORD],[IP],[DNS],[GATEWAY],[SUBNET]" : as ATW, but with more options
+ATW=SLEEP=0|1 : Turns WiFi sleep off/on.  ATW=SLEEP? shows the current state.
+ATW=TXP=x : Sets WiFi transmit power in dBm (ESP32 rounds to nearest supported).  ATW=TXP? shows the current value or default.
 ATWP : Adding a P modifier is the same as all forms of ATW, with both arguments and results presented in PETSCII.
 
 ATD : Start a streaming connection between the current opened connection.  Use "+++" to exit back to Command mode.

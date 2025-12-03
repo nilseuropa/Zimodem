@@ -64,6 +64,7 @@ const char compile_date[] = __DATE__ " " __TIME__;
 # include "lwip/raw.h"
 # include "lwip/netif.h"
 #endif
+#include <math.h>
 
 #ifdef SUPPORT_LED_PINS
 # ifdef GPIO_NUM_0
@@ -287,6 +288,8 @@ enum BaudState
 static String wifiSSI;
 static String wifiPW;
 static String hostname;
+static bool wifiSleepEnabled = true;
+static float wifiTxPowerDbm = -1.0;
 static IPAddress *staticIP = null;
 static IPAddress *staticDNS = null;
 static IPAddress *staticGW = null;
@@ -351,6 +354,79 @@ static void setHostName(const char *hname)
 #endif
 }
 
+static bool applyWifiSleep()
+{
+#ifdef ZIMODEM_ESP32
+  WiFi.setSleep(wifiSleepEnabled);
+  return true;
+#else
+  WiFi.setSleepMode(wifiSleepEnabled ? WIFI_LIGHT_SLEEP : WIFI_NONE_SLEEP);
+  return true;
+#endif
+}
+
+#ifdef ZIMODEM_ESP32
+struct WifiPowerMap { wifi_power_t level; float dbm; };
+static const WifiPowerMap WIFI_POWERS[] = {
+  { WIFI_POWER_19_5dBm, 19.5f },
+  { WIFI_POWER_19dBm,   19.0f },
+  { WIFI_POWER_18_5dBm, 18.5f },
+  { WIFI_POWER_17dBm,   17.0f },
+  { WIFI_POWER_15dBm,   15.0f },
+  { WIFI_POWER_13dBm,   13.0f },
+  { WIFI_POWER_11dBm,   11.0f },
+  { WIFI_POWER_8_5dBm,   8.5f },
+};
+#endif
+
+static bool applyWifiTxPower()
+{
+  if(wifiTxPowerDbm < 0)
+    return true; // default radio setting
+#ifdef ZIMODEM_ESP32
+  wifi_power_t chosen = WIFI_POWER_19_5dBm;
+  float bestDiff = 999.0f;
+  for(unsigned int i=0;i<sizeof(WIFI_POWERS)/sizeof(WIFI_POWERS[0]);i++)
+  {
+    float diff = fabs(WIFI_POWERS[i].dbm - wifiTxPowerDbm);
+    if(diff < bestDiff)
+    {
+      bestDiff = diff;
+      chosen = WIFI_POWERS[i].level;
+    }
+  }
+  return WiFi.setTxPower(chosen);
+#else
+  float clamped = wifiTxPowerDbm;
+  if(clamped > 20.5f) clamped = 20.5f;
+  if(clamped < 0.0f) clamped = 0.0f;
+  WiFi.setOutputPower(clamped);
+  return true;
+#endif
+}
+
+bool zimodemSetWifiSleep(bool enable)
+{
+  wifiSleepEnabled = enable;
+  return applyWifiSleep();
+}
+
+bool zimodemSetWifiTxPower(float dbm)
+{
+  wifiTxPowerDbm = dbm;
+  return applyWifiTxPower();
+}
+
+bool zimodemGetWifiSleep()
+{
+  return wifiSleepEnabled;
+}
+
+float zimodemGetWifiTxPower()
+{
+  return wifiTxPowerDbm;
+}
+
 static void setNewStaticIPs(IPAddress *ip, IPAddress *dns, IPAddress *gateWay, IPAddress *subNet)
 {
   if(staticIP != null)
@@ -384,6 +460,8 @@ static bool connectWifi(const char* ssid, const char* password, IPAddress *ip, I
     setHostName(hostname.c_str());
 #endif
   WiFi.mode(WIFI_STA);
+  applyWifiSleep();
+  applyWifiTxPower();
   do
   {
     if((ip != null)&&(gateWay != null)&&(dns != null)&&(subNet!=null))
