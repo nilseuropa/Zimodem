@@ -35,7 +35,7 @@ const char compile_date[] = __DATE__ " " __TIME__;
 //#define USE_DEVUPDATER true // only enable this if your name is Bo
 
 // Figure out whether we are building for ESP8266 or ESP32
-#ifdef ARDUINO_ESP32S3_DEV || ARDUINO_ESP32C3_DEV
+#if defined(ARDUINO_ESP32S3_DEV) || defined(ARDUINO_ESP32C3_DEV)
 # define ZIMODEM_ESP32
 #elif ARDUINO_ESP32_DEV
 # define ZIMODEM_ESP32
@@ -56,6 +56,13 @@ const char compile_date[] = __DATE__ " " __TIME__;
 # undef INCLUDE_SSH
 # undef INCLUDE_SD_SHELL
 # undef INCLUDE_CBMMODEM
+#endif
+
+#if defined(ZIMODEM_ESP32) || defined(ZIMODEM_ESP8266)
+# include "lwip/err.h"
+# include "lwip/pbuf.h"
+# include "lwip/raw.h"
+# include "lwip/netif.h"
 #endif
 
 #ifdef SUPPORT_LED_PINS

@@ -66,14 +66,25 @@ void WiFiSSHClient::stop()
 int WiFiSSHClient::connect(IPAddress ip, uint16_t port)
 {
   sock = socket(AF_INET, SOCK_STREAM, 0);
+  if(sock < 0)
+    return false;
 
   struct sockaddr_in sin;
   sin.sin_family = AF_INET;
   sin.sin_port = htons(port);
   sin.sin_addr.s_addr = ip;
   if(::connect(sock, (struct sockaddr*)(&sin), sizeof(struct sockaddr_in)) != 0)
+  {
+    closeSSH();
     return false;
+  }
   session = libssh2_session_init();
+  if(session == null)
+  {
+    debugPrintf("wifisshclient: failed session init\r\n");
+    closeSSH();
+    return false;
+  }
   if(libssh2_session_handshake(session, sock))
   {
     debugPrintf("wifisshclient: failed handshake\n\r");
@@ -108,6 +119,7 @@ int WiFiSSHClient::connect(IPAddress ip, uint16_t port)
   if((err > 0) && (err != LIBSSH2_ERROR_EAGAIN)) {
     ibufSz += err;
   }
+  return true;
 }
 int WiFiSSHClient::connect(IPAddress ip, uint16_t port, int32_t timeout_ms)
 {
@@ -116,7 +128,7 @@ int WiFiSSHClient::connect(IPAddress ip, uint16_t port, int32_t timeout_ms)
 
 int WiFiSSHClient::connect(const char *host, uint16_t port)
 {
-  if(host == null)
+  if((host == null) || (*host == 0))
     return false;
   IPAddress hostIp((uint32_t)0);
   if(!WiFiGenericClass::hostByName(host, hostIp))
@@ -154,7 +166,13 @@ bool WiFiSSHClient::finishLogin()
   char *userauthlist;
   /* check what authentication methods are available */
   userauthlist = libssh2_userauth_list(session, _username.c_str(), strlen(_username.c_str()));
-  if(strstr(userauthlist, "password") != NULL)
+  if(userauthlist == null)
+  {
+    debugPrintf("wifisshclient: auth methods unavailable\n\r");
+    return false;
+  }
+  if((strstr(userauthlist, "password") != NULL)
+  && (_password.length() > 0))
   {
     if(libssh2_userauth_password(session, _username.c_str(), _password.c_str()))
       return false;
@@ -205,8 +223,8 @@ bool WiFiSSHClient::finishLogin()
 
 void WiFiSSHClient::setLogin(String username, String password)
 {
-  _username = username;
-  _password = password;
+  _username = username.length() == 0 ? "" : username;
+  _password = password.length() == 0 ? "" : password;
 }
 
 void WiFiSSHClient::intern_buffer_fill()
