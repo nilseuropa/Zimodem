@@ -11,10 +11,10 @@
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
-   limitations under the License. 
+   limitations under the License.
 */
 //#define TCP_SND_BUF                     4 * TCP_MSS
-#define ZIMODEM_VERSION "4.0.2"
+#define ZIMODEM_VERSION "4.0.3"
 const char compile_date[] = __DATE__ " " __TIME__;
 #define DEFAULT_NO_DELAY true
 #define null 0
@@ -296,7 +296,7 @@ static unsigned long nextReconnectDelay = 0; // zero means don't attempt reconne
 static SerialConfig serialConfig = DEFAULT_SERIAL_CONFIG;
 static int baudRate=DEFAULT_BAUD_RATE;
 static int dequeSize=1+(DEFAULT_BAUD_RATE/INTERNAL_FLOW_CONTROL_DIV);
-static BaudState baudState = BS_NORMAL; 
+static BaudState baudState = BS_NORMAL;
 static unsigned long resetPushTimer=0;
 static int tempBaud = -1; // -1 do nothing
 static unsigned int plussesInARow = 0;
@@ -329,7 +329,7 @@ static int getDefaultCtsPin()
   return DEFAULT_PIN_CTS;
 }
 
-static void doNothing(const char* format, ...) 
+static void doNothing(const char* format, ...)
 {
 }
 
@@ -369,6 +369,10 @@ static void setNewStaticIPs(IPAddress *ip, IPAddress *dns, IPAddress *gateWay, I
 
 static bool connectWifi(const char* ssid, const char* password, IPAddress *ip, IPAddress *dns, IPAddress *gateWay, IPAddress *subNet)
 {
+  const int maxAttempts = 3;      // try a few times at boot to avoid first-attempt flakiness
+  const int pollLimit = 30;       // 30 * 500ms = 15s per attempt
+  int attempts = 0;
+  bool amConnected = false;
   while(WiFi.status() == WL_CONNECTED)
   {
     WiFi.disconnect();
@@ -380,23 +384,32 @@ static bool connectWifi(const char* ssid, const char* password, IPAddress *ip, I
     setHostName(hostname.c_str());
 #endif
   WiFi.mode(WIFI_STA);
-  if((ip != null)&&(gateWay != null)&&(dns != null)&&(subNet!=null))
+  do
   {
-    if(!WiFi.config(*ip,*gateWay,*subNet,*dns))
-      return false;
-  }
-  WiFi.begin(ssid, password);
-  if(hostname.length() > 0)
-    setHostName(hostname.c_str());
-  bool amConnected = (WiFi.status() == WL_CONNECTED) && (strcmp(WiFi.localIP().toString().c_str(), "0.0.0.0")!=0);
-  int WiFiCounter = 0;
-  while ((!amConnected) && (WiFiCounter < 20))
-  {
-    WiFiCounter++;
-    if(!amConnected)
-      delay(500);
+    if((ip != null)&&(gateWay != null)&&(dns != null)&&(subNet!=null))
+    {
+      if(!WiFi.config(*ip,*gateWay,*subNet,*dns))
+        return false;
+    }
+    WiFi.begin(ssid, password);
+    if(hostname.length() > 0)
+      setHostName(hostname.c_str());
     amConnected = (WiFi.status() == WL_CONNECTED) && (strcmp(WiFi.localIP().toString().c_str(), "0.0.0.0")!=0);
+    int WiFiCounter = 0;
+    while ((!amConnected) && (WiFiCounter < pollLimit))
+    {
+      WiFiCounter++;
+      if(!amConnected)
+        delay(500);
+      amConnected = (WiFi.status() == WL_CONNECTED) && (strcmp(WiFi.localIP().toString().c_str(), "0.0.0.0")!=0);
+    }
+    if(!amConnected)
+    {
+      WiFi.disconnect();
+      delay(300);
+    }
   }
+  while((++attempts < maxAttempts) && (!amConnected));
   lastConnectAttempt = millis();
   if(lastConnectAttempt == 0)  // it IS possible for millis() to be 0, but we need to ignore it.
     lastConnectAttempt = 1; // 0 is a special case, so skip it
@@ -448,7 +461,7 @@ static void changeBaudRate(int baudRate)
 #endif
 #ifdef SUPPORT_LED_PINS
   s_pinWrite(DEFAULT_PIN_HS,(baudRate>=DEFAULT_HS_BAUD)?DEFAULT_HS_ACTIVE:DEFAULT_HS_INACTIVE);
-#endif  
+#endif
 }
 
 static void changeSerialConfig(SerialConfig conf)
@@ -547,7 +560,7 @@ static bool checkPlusPlusPlusEscape()
   return false;
 }
 
-void setup() 
+void setup()
 {
   for(int i=0;i<MAX_PIN_NO;i++)
     pinSupport[i]=false;
@@ -696,7 +709,7 @@ void checkFactoryReset()
 #endif
 }
 
-void loop() 
+void loop()
 {
   checkFactoryReset();
   checkReconnect();

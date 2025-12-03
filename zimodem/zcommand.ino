@@ -1541,7 +1541,7 @@ ZResult ZCommand::doUpdateFirmware(int vval, uint8_t *vbuf, int vlen, bool isNum
 # ifdef INCLUDE_CMDRX16
    char *updaterHost = "www.zimmers.net"; // changeme!
 # else
-   char *updaterHost = "www.zimmers.net";
+    const char *updaterHost = "www.zimmers.net";
 # endif
   int updaterPort = 80;
 #endif
@@ -1549,7 +1549,7 @@ ZResult ZCommand::doUpdateFirmware(int vval, uint8_t *vbuf, int vlen, bool isNum
   char *updaterPrefix = "/otherprojs/x16";
 #else
 # ifdef ZIMODEM_ESP32
-   char *updaterPrefix = "/otherprojs/guru2";
+    const char *updaterPrefix = "/otherprojs/guru2";
 # else
   char *updaterPrefix = "/otherprojs/c64net2";
 # endif

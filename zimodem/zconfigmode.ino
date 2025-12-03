@@ -548,9 +548,11 @@ void ZConfig::doModeCommand()
           }
           else
           {
-            wifiSSI=WiFi.SSID(num-1);
-            wifiPW="";
-            settingsChanged=true;
+            String newSsi = WiFi.SSID(num-1);
+            String newPw = "";
+            settingsChanged = settingsChanged || (wifiSSI != newSsi) || (wifiPW != newPw);
+            wifiSSI=newSsi;
+            wifiPW=newPw;
             serial.printf("%sConnected!%s",EOLNC,EOLNC);
             currState=ZCFGMENU_NETMENU;
           }
@@ -624,9 +626,11 @@ void ZConfig::doModeCommand()
             lastDNS=(staticDNS != null)?*staticDNS:IPAddress(192,168,0,1);
             lastGW=(staticGW != null)?*staticGW:IPAddress(192,168,0,1);
             lastSN=(staticSN != null)?*staticSN:IPAddress(255,255,255,0);
-            wifiSSI=WiFi.SSID(lastNumber);
-            wifiPW=cmd;
-            settingsChanged=true;
+            String newSsi = WiFi.SSID(lastNumber);
+            String newPw = cmd;
+            settingsChanged = settingsChanged || (wifiSSI != newSsi) || (wifiPW != newPw);
+            wifiSSI=newSsi;
+            wifiPW=newPw;
             currState=ZCFGMENU_NETMENU;
           }
           showMenu=true;
